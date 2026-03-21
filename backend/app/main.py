@@ -15,7 +15,7 @@ from dotenv import load_dotenv
 from .models import TraitSummary
 
 
-load_dotenv(Path(__file__).resolve().parents[1] / ".env")
+load_dotenv(Path(__file__).resolve().parents[1] / ".env.local")
 
 MAX_VIDEO_BYTES = 2 * 1024 * 1024 * 1024
 MAX_VIDEO_SECONDS = 45 * 60
@@ -179,6 +179,41 @@ def resolve_duration_seconds(
     return client_duration_seconds
 
 
+def transcode_video(input_path: str) -> str | None:
+    output_file = NamedTemporaryFile(delete=False, suffix=".mp4")
+    output_path = output_file.name
+    output_file.close()
+
+    try:
+        subprocess.run(
+            [
+                "ffmpeg", "-y", "-i", input_path,
+                "-vf", "fps=6,scale=-2:360",
+                "-an",
+                "-c:v", "libx264", "-preset", "ultrafast", "-crf", "28",
+                output_path,
+            ],
+            check=True,
+            capture_output=True,
+        )
+    except FileNotFoundError:
+        remove_file(output_path)
+        return None
+    except subprocess.CalledProcessError as exc:
+        remove_file(output_path)
+        raise ApiError(
+            400,
+            "transcode_failed",
+            "Unable to transcode the uploaded video.",
+        ) from exc
+
+    original_mb = Path(input_path).stat().st_size / 1024 / 1024
+    compressed_mb = Path(output_path).stat().st_size / 1024 / 1024
+    print(f"[transcode] {original_mb:.1f} MB → {compressed_mb:.1f} MB ({output_path})")
+
+    return output_path
+
+
 def build_client() -> genai.Client:
     api_key = os.getenv("GEMINI_API_KEY")
     if not api_key:
@@ -268,9 +303,10 @@ async def summarize(
     duration_seconds: float | None = Form(default=None),
 ):
     video_path = None
+    transcoded_path = None
 
     try:
-        video_path, mime_type = await persist_upload(video)
+        video_path, _ = await persist_upload(video)
         resolved_duration_seconds = resolve_duration_seconds(video_path, duration_seconds)
         if resolved_duration_seconds > MAX_VIDEO_SECONDS:
             raise ApiError(
@@ -279,7 +315,11 @@ async def summarize(
                 "Video exceeds the 45 minute limit for summarization.",
             )
 
-        summary = summarize_video(video_path, mime_type)
+        transcoded_path = transcode_video(video_path)
+        upload_path = transcoded_path if transcoded_path is not None else video_path
+
+        summary = summarize_video(upload_path, "video/mp4")
         return summary
     finally:
+        remove_file(transcoded_path)
         remove_file(video_path)
