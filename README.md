@@ -55,7 +55,7 @@ npm run lint
 
 ## API
 
-- `GET /api/health`
+- `GET  /api/health`
 - `POST /api/summarize`
 
 The summarization endpoint accepts multipart form-data with a `video` file and returns the exact trait JSON contract used by the frontend.
