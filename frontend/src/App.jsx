@@ -1,6 +1,5 @@
 import { useState } from 'react'
 import Header from './components/Header'
-import BottomNav from './components/BottomNav'
 import UploadScreen from './screens/UploadScreen'
 import AnalyzingScreen from './screens/AnalyzingScreen'
 import ResultsScreen from './screens/ResultsScreen'
@@ -49,7 +48,7 @@ function App() {
 
   return (
     <div className="font-body text-on-surface antialiased overflow-hidden">
-      <Header />
+      <Header onReset={handleReset} />
 
       {screen === 'upload' && (
         <UploadScreen
@@ -72,13 +71,9 @@ function App() {
       {screen === 'results' && result && (
         <ResultsScreen
           analysisMode={analysisMode}
-          fileName={file?.name || 'video.mp4'}
-          onReset={handleReset}
           result={result}
         />
       )}
-
-      <BottomNav />
     </div>
   )
 }

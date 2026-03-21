@@ -6,16 +6,8 @@ function formatSize(bytes) {
 }
 
 const ANALYSIS_OPTIONS = [
-  {
-    value: 'mock',
-    label: 'Mock Data',
-    description: 'Uses the local sample trait summary.',
-  },
-  {
-    value: 'real',
-    label: 'Real Gemini',
-    description: 'Uploads the recording to FastAPI and Gemini.',
-  },
+  { value: 'mock', label: 'Mock Data' },
+  { value: 'real', label: 'Real Gemini' },
 ]
 
 export default function UploadScreen({
@@ -40,7 +32,7 @@ export default function UploadScreen({
   }
 
   return (
-    <main className="min-h-screen flex flex-col items-center justify-center px-8 pt-20 pb-28">
+    <main className="min-h-screen flex flex-col items-center px-8 pt-36 pb-12">
       <input
         ref={inputRef}
         type="file"
@@ -52,22 +44,19 @@ export default function UploadScreen({
         }}
       />
 
-      <div className="w-full max-w-sm mb-12 ml-[10%] animate-fade-up" style={{ animationDelay: '0.25s' }}>
-        <h2 className="font-headline text-4xl font-extrabold leading-tight tracking-tight text-brand">
+      <div className="w-full max-w-sm mb-6 animate-fade-up" style={{ animationDelay: '0.25s' }}>
+        <h2 className="font-headline text-3xl font-extrabold leading-tight tracking-tight text-brand">
           Upload
           <br />
           Recording
         </h2>
-        <p className="mt-4 font-body text-secondary text-sm tracking-wide">
-          Choose mock mode for local sample data or real mode to summarize the uploaded video.
-        </p>
       </div>
 
-      <div className="w-full max-w-sm mb-6 animate-fade-up" style={{ animationDelay: '0.35s' }}>
-        <p className="font-headline text-xs font-bold uppercase tracking-widest text-brand/50 mb-3 px-1">
+      <div className="w-full max-w-sm mb-4 animate-fade-up" style={{ animationDelay: '0.35s' }}>
+        <p className="font-headline text-xs font-bold uppercase tracking-widest text-brand/50 mb-2 px-1">
           Analysis Mode
         </p>
-        <div className="space-y-3">
+        <div className="space-y-2">
           {ANALYSIS_OPTIONS.map((option) => {
             const isSelected = option.value === analysisMode
 
@@ -75,7 +64,7 @@ export default function UploadScreen({
               <button
                 key={option.value}
                 type="button"
-                className={`w-full rounded-2xl border px-4 py-4 text-left transition-all duration-300 ${
+                className={`w-full rounded-2xl border px-4 py-3 text-left transition-all duration-300 ${
                   isSelected
                     ? 'glass border-brand/25 shadow-lg shadow-brand/10'
                     : 'bg-white/35 border-white/50 hover:bg-white/45'
@@ -83,17 +72,14 @@ export default function UploadScreen({
                 onClick={() => setAnalysisMode(option.value)}
               >
                 <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <p className="font-headline text-base font-bold text-brand">{option.label}</p>
-                    <p className="mt-1 font-label text-xs tracking-wide text-brand/65">{option.description}</p>
-                  </div>
+                  <p className="font-headline text-base font-bold text-brand">{option.label}</p>
                   <span
                     className={`material-symbols-outlined text-xl ${
-                      isSelected ? 'text-brand' : 'text-brand/30'
+                      isSelected ? 'text-brand' : 'text-brand/50'
                     }`}
-                    style={{ fontVariationSettings: isSelected ? "'FILL' 1" : "'FILL' 0" }}
+                    style={{ fontVariationSettings: "'FILL' 1" }}
                   >
-                    radio_button_checked
+                    {isSelected ? 'radio_button_checked' : 'radio_button_unchecked'}
                   </span>
                 </div>
               </button>
@@ -105,7 +91,7 @@ export default function UploadScreen({
       <div className="relative w-full max-w-sm flex flex-col items-center">
         {!file && (
           <div
-            className={`drop-zone group relative flex items-center justify-center w-64 h-64 mb-8 cursor-pointer animate-fade-up ${dragOver ? 'drag-over' : ''}`}
+            className={`drop-zone group relative flex items-center justify-center w-48 h-48 mb-5 cursor-pointer animate-fade-up ${dragOver ? 'drag-over' : ''}`}
             style={{ animationDelay: '0.4s' }}
             onClick={() => inputRef.current?.click()}
             onDragLeave={() => setDragOver(false)}
@@ -117,8 +103,8 @@ export default function UploadScreen({
           >
             <div className="absolute inset-0 rounded-full bg-brand/[0.06] animate-soft-ping" />
             <div className="absolute inset-4 rounded-full bg-brand/[0.06]" />
-            <div className="drop-circle glass-strong relative z-10 w-48 h-48 rounded-full flex flex-col items-center justify-center transition-transform duration-500">
-              <span className="material-symbols-outlined text-5xl mb-2 text-brand">upload_file</span>
+            <div className="drop-circle glass-strong relative z-10 w-36 h-36 rounded-full flex flex-col items-center justify-center transition-transform duration-500">
+              <span className="material-symbols-outlined text-4xl mb-1 text-brand">upload_file</span>
               <span className="font-label text-[10px] uppercase tracking-widest text-brand/60">Drop here</span>
             </div>
           </div>
@@ -126,9 +112,6 @@ export default function UploadScreen({
 
         {file && (
           <div className="glass w-full flex items-center gap-4 px-5 py-4 rounded-xl mb-4 animate-fade-up">
-            <div className="w-11 h-11 rounded-xl bg-brand flex items-center justify-center flex-shrink-0">
-              <span className="material-symbols-outlined text-white text-xl">play_arrow</span>
-            </div>
             <div className="flex-1 min-w-0">
               <p className="font-label text-sm font-medium text-brand truncate">{file.name}</p>
               <p className="font-label text-xs text-secondary mt-0.5">{formatSize(file.size)}</p>
@@ -175,7 +158,7 @@ export default function UploadScreen({
         </div>
       </div>
 
-      <div className="mt-16 w-16 h-px bg-outline-variant/30 animate-fade-up" style={{ animationDelay: '0.55s' }} />
+      <div className="mt-8 w-16 h-px bg-outline-variant/30 animate-fade-up" style={{ animationDelay: '0.55s' }} />
     </main>
   )
 }
