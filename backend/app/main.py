@@ -32,7 +32,7 @@ SUPPORTED_VIDEO_MIME_TYPES = {
     "video/x-flv",
 }
 MODEL_NAME = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
-FILE_ACTIVE_TIMEOUT_SECONDS = 120
+FILE_ACTIVE_TIMEOUT_SECONDS = 300
 FILE_ACTIVE_POLL_INTERVAL_SECONDS = 5
 PROMPT = """
 Analyze this scrolling session recording and infer the viewer's psychographic profile from the content they spend time on, pause on, and repeatedly engage with.
