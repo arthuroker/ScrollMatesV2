@@ -1,0 +1,11 @@
+.DS_Store
+.venv/
+backend/.env
+backend/.env.local
+backend/__pycache__/
+backend/app/__pycache__/
+frontend/dist/
+frontend/node_modules/
+.claude
+.vite/
+**/__pycache__/

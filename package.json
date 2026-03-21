@@ -1,0 +1,11 @@
+{
+  "name": "scrollmates",
+  "private": true,
+  "version": "1.0.0",
+  "scripts": {
+    "dev:frontend": "npm --prefix frontend run dev",
+    "dev:backend": "python3 -m uvicorn backend.app.main:app --reload",
+    "build": "npm --prefix frontend run build",
+    "lint": "npm --prefix frontend run lint"
+  }
+}
