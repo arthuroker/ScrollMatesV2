@@ -36,6 +36,9 @@ Copy [`backend/.env.example`](/Users/arthuroker/Documents/Coding Projects/Scroll
 ```bash
 export GEMINI_API_KEY=your_gemini_api_key
 export GEMINI_MODEL=gemini-2.5-flash
+export SUPABASE_URL=https://your-project.supabase.co
+export SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key
+export SUPABASE_SUMMARY_JOBS_TABLE=summary_jobs
 ```
 
 Start the backend:
@@ -57,7 +60,22 @@ npm run lint
 
 - `GET /api/health`
 - `POST /api/summarize`
+- `GET /api/summarize/{job_id}`
 
-The summarization endpoint accepts multipart form-data with a `video` file and returns the exact trait JSON contract used by the frontend.
+`POST /api/summarize` now accepts multipart form-data with a `video` file and returns a job kickoff payload instead of the final summary:
+
+```json
+{
+  "job_id": "uuid",
+  "status": "processing",
+  "stage": "persisting_upload"
+}
+```
+
+The frontend should poll `GET /api/summarize/{job_id}` for the current job state, final summary, or error.
 
 For duration validation, the backend prefers `ffprobe` when installed and otherwise falls back to the browser-reported video duration sent by the frontend.
+
+## Supabase Schema
+
+Create a `summary_jobs` table in Supabase with the columns expected by the backend. A starter SQL definition is included in [`backend/supabase_summary_jobs.sql`](/Users/arthuroker/Documents/Coding Projects/ScrollMates/backend/supabase_summary_jobs.sql).
