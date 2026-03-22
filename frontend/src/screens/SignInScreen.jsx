@@ -1,6 +1,6 @@
 import { useState } from 'react'
 
-export default function SignInScreen({ error, loading, onSubmit }) {
+export default function SignInScreen({ onSignIn }) {
   const [mode, setMode] = useState('signin')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -9,7 +9,7 @@ export default function SignInScreen({ error, loading, onSubmit }) {
 
   const handleSubmit = (e) => {
     e.preventDefault()
-    onSubmit({ mode, email, password })
+    onSignIn({ email, password })
   }
 
   return (
@@ -78,20 +78,12 @@ export default function SignInScreen({ error, loading, onSubmit }) {
             />
           </div>
 
-          {error && (
-            <div className="rounded-2xl border border-error/20 bg-error/8 px-4 py-3 animate-fade-up" style={{ animationDelay: '0.45s' }}>
-              <p className="font-label text-[10px] uppercase tracking-[0.2em] text-error/70">Auth Error</p>
-              <p className="mt-1 text-sm text-brand/80">{error}</p>
-            </div>
-          )}
-
           <div className="animate-fade-up pt-2" style={{ animationDelay: '0.5s' }}>
             <button
               type="submit"
-              disabled={loading}
-              className="w-full py-3.5 px-6 rounded-lg text-on-primary font-headline font-bold text-sm text-center transition-all duration-300 active:scale-[0.98] bg-brand/85 backdrop-blur-md shadow-lg shadow-brand/15 border border-brand/20 disabled:cursor-not-allowed disabled:opacity-60"
+              className="w-full py-3.5 px-6 rounded-lg text-on-primary font-headline font-bold text-sm text-center transition-all duration-300 active:scale-[0.98] bg-brand/85 backdrop-blur-md shadow-lg shadow-brand/15 border border-brand/20"
             >
-              {loading ? 'Working...' : isSignIn ? 'Sign In' : 'Create Account'}
+              {isSignIn ? 'Sign In' : 'Create Account'}
             </button>
           </div>
         </form>

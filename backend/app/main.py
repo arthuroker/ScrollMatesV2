@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from uuid import uuid4
 
@@ -42,7 +42,7 @@ class AppServices:
     match_worker_task: asyncio.Task | None = None
 
 
-def _current_week_start_utc() -> datetime.date:
+def _current_week_start_utc() -> date:
     current_date = datetime.now(timezone.utc).date()
     return current_date - timedelta(days=current_date.weekday())
 
@@ -75,7 +75,10 @@ def create_app(services: AppServices | None = None, *, start_worker: bool = True
             finally:
                 if app_services.match_worker_task is not None:
                     app_services.match_worker_task.cancel()
-                    await asyncio.gather(app_services.match_worker_task, return_exceptions=True)
+                    await asyncio.gather(
+                        app_services.match_worker_task,
+                        return_exceptions=True,
+                    )
                 await pool.close()
         else:
             app.state.services = services
@@ -134,71 +137,6 @@ def create_app(services: AppServices | None = None, *, start_worker: bool = True
             duration_seconds=duration_seconds,
         )
 
-    return client_duration_seconds
-
-
-def transcode_video(input_path: str) -> str | None:
-    output_file = NamedTemporaryFile(delete=False, suffix=".mp4")
-    output_path = output_file.name
-    output_file.close()
-
-    try:
-        subprocess.run(
-            [
-                "ffmpeg", "-y", "-i", input_path,
-                "-vf", "fps=6,scale=-2:360",
-                "-an",
-                "-c:v", "libx264", "-preset", "ultrafast", "-crf", "28",
-                output_path,
-            ],
-            check=True,
-            capture_output=True,
-        )
-    except FileNotFoundError:
-        remove_file(output_path)
-        return None
-    except subprocess.CalledProcessError as exc:
-        remove_file(output_path)
-        raise ApiError(
-            400,
-            "transcode_failed",
-            "Unable to transcode the uploaded video.",
-        ) from exc
-
-    original_mb = Path(input_path).stat().st_size / 1024 / 1024
-    compressed_mb = Path(output_path).stat().st_size / 1024 / 1024
-    print(f"[transcode] {original_mb:.1f} MB → {compressed_mb:.1f} MB ({output_path})")
-
-    return output_path
-
-
-def build_client() -> genai.Client:
-    api_key = os.getenv("GEMINI_API_KEY")
-    if not api_key:
-        raise ApiError(
-            500,
-            "missing_api_key",
-            "Set GEMINI_API_KEY before calling the summarization endpoint.",
-        )
-    return genai.Client(api_key=api_key)
-
-
-def wait_for_active_file(client: genai.Client, uploaded_file):
-    started_at = time.monotonic()
-    current_file = uploaded_file
-
-    while True:
-        current_state = getattr(current_file, "state", None)
-        current_state_name = getattr(current_state, "name", None)
-
-        if current_state_name == "ACTIVE":
-            return current_file
-
-        if current_state_name == "FAILED":
-            raise ApiError(
-                502,
-                "file_processing_failed",
-                "Gemini failed to process the uploaded video file.",
         try:
             video_path = await persist_upload(video)
         except ApiError as exc:
@@ -265,35 +203,4 @@ def wait_for_active_file(client: genai.Client, uploaded_file):
     return app
 
 
-@app.get("/api/health")
-async def health_check():
-    return {"status": "ok", "model": MODEL_NAME}
-
-
-@app.post("/api/summarize", response_model=TraitSummary)
-async def summarize(
-    video: UploadFile = File(...),
-    duration_seconds: float | None = Form(default=None),
-):
-    video_path = None
-    transcoded_path = None
-
-    try:
-        video_path, _ = await persist_upload(video)
-        resolved_duration_seconds = resolve_duration_seconds(video_path, duration_seconds)
-        if resolved_duration_seconds > MAX_VIDEO_SECONDS:
-            raise ApiError(
-                413,
-                "video_too_long",
-                "Video exceeds the 45 minute limit for summarization.",
-            )
-
-        transcoded_path = transcode_video(video_path)
-        upload_path = transcoded_path if transcoded_path is not None else video_path
-
-        summary = summarize_video(upload_path, "video/mp4")
-        return summary
-    finally:
-        remove_file(transcoded_path)
-        remove_file(video_path)
 app = create_app()

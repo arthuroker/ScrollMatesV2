@@ -1,9 +1,12 @@
 export const MOCK_SUMMARY_DELAY_MS = 1600
 
 export const MOCK_STAGES = [
-  { stage: 'upload', duration: 1800 },
-  { stage: 'gemini_analysis', duration: 3200 },
-  { stage: 'embedding', duration: 2200 },
+  { stage: 'queued', duration: 2500 },
+  { stage: 'persisting_upload', duration: 3000 },
+  { stage: 'validating_video', duration: 2500 },
+  { stage: 'uploading_to_gemini', duration: 3000 },
+  { stage: 'waiting_for_gemini', duration: 4000 },
+  { stage: 'generating_summary', duration: 3500 },
 ]
 
 export const MOCK_SUMMARY = {

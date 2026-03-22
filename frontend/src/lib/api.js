@@ -1,14 +1,3 @@
-import { getAccessToken } from './supabase'
-
-export class ApiError extends Error {
-  constructor(message, { status, code } = {}) {
-    super(message)
-    this.name = 'ApiError'
-    this.status = status
-    this.code = code
-  }
-}
-
 function getVideoDurationSeconds(file) {
   return new Promise((resolve, reject) => {
     const video = document.createElement('video')
@@ -40,60 +29,36 @@ function getVideoDurationSeconds(file) {
   })
 }
 
-async function fetchApi(path, { auth = true, headers, ...init } = {}) {
-  const nextHeaders = new Headers(headers || {})
-
-  if (auth) {
-    const accessToken = await getAccessToken()
-    if (!accessToken) {
-      throw new ApiError('Authentication is required.', {
-        status: 401,
-        code: 'missing_token',
-      })
-    }
-    nextHeaders.set('Authorization', `Bearer ${accessToken}`)
-  }
-
-  const response = await fetch(path, {
-    ...init,
-    headers: nextHeaders,
-  })
+export async function getJobStatus(jobId) {
+  const response = await fetch(`/api/summarize/${jobId}`)
   const payload = await response.json().catch(() => null)
 
   if (!response.ok) {
-    throw new ApiError(
-      payload?.error?.message || 'The request failed.',
-      {
-        status: response.status,
-        code: payload?.error?.code,
-      },
-    )
+    const message = payload?.error?.message || 'Unable to check job status.'
+    throw new Error(message)
   }
 
   return payload
 }
 
-export async function uploadVideo(file) {
+export async function summarizeVideo(file) {
   const formData = new FormData()
   const durationSeconds = await getVideoDurationSeconds(file)
 
   formData.append('video', file)
   formData.append('duration_seconds', String(durationSeconds))
 
-  return fetchApi('/api/upload', {
+  const response = await fetch('/api/summarize', {
     method: 'POST',
     body: formData,
   })
-}
 
-export async function getJobStatus(jobId) {
-  return fetchApi(`/api/jobs/${jobId}`)
-}
+  const payload = await response.json().catch(() => null)
 
-export async function getProfile() {
-  return fetchApi('/api/profile')
-}
+  if (!response.ok) {
+    const message = payload?.error?.message || 'Unable to analyze this recording right now.'
+    throw new Error(message)
+  }
 
-export async function getMatches() {
-  return fetchApi('/api/matches')
+  return payload
 }
