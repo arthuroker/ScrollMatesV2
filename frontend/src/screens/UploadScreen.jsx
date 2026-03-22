@@ -12,6 +12,7 @@ const ANALYSIS_OPTIONS = [
 
 export default function UploadScreen({
   analysisMode,
+  allowRealAnalysis = true,
   error,
   file,
   onAnalyze,
@@ -30,6 +31,10 @@ export default function UploadScreen({
     setDragOver(false)
     if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0])
   }
+
+  const analysisOptions = allowRealAnalysis
+    ? ANALYSIS_OPTIONS
+    : ANALYSIS_OPTIONS.filter((option) => option.value === 'mock')
 
   return (
     <main className="box-border min-h-screen w-full max-w-full overflow-x-clip flex flex-col items-center px-8 pt-36 pb-12">
@@ -57,7 +62,7 @@ export default function UploadScreen({
           Analysis Mode
         </p>
         <div className="space-y-2">
-          {ANALYSIS_OPTIONS.map((option) => {
+          {analysisOptions.map((option) => {
             const isSelected = option.value === analysisMode
 
             return (

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 
-export default function SignInScreen({ onSignIn }) {
+export default function SignInScreen({ onBypassAuth, onSignIn }) {
   const [mode, setMode] = useState('signin')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -9,7 +9,7 @@ export default function SignInScreen({ onSignIn }) {
 
   const handleSubmit = (e) => {
     e.preventDefault()
-    onSignIn({ email, password })
+    onSignIn({ mode, email, password })
   }
 
   return (
@@ -87,6 +87,16 @@ export default function SignInScreen({ onSignIn }) {
             </button>
           </div>
         </form>
+
+        <div className="animate-fade-up pt-4" style={{ animationDelay: '0.55s' }}>
+          <button
+            type="button"
+            onClick={onBypassAuth}
+            className="w-full text-secondary font-label text-xs uppercase tracking-[0.2em] hover:opacity-70 transition-opacity text-center py-2"
+          >
+            Continue Without Sign-In
+          </button>
+        </div>
       </div>
     </main>
   )
