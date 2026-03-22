@@ -1,3 +1,14 @@
+import { getAccessToken } from './supabase'
+
+export class ApiError extends Error {
+  constructor(message, { status, code } = {}) {
+    super(message)
+    this.name = 'ApiError'
+    this.status = status
+    this.code = code
+  }
+}
+
 function getVideoDurationSeconds(file) {
   return new Promise((resolve, reject) => {
     const video = document.createElement('video')
@@ -29,24 +40,60 @@ function getVideoDurationSeconds(file) {
   })
 }
 
-export async function summarizeVideo(file) {
+async function fetchApi(path, { auth = true, headers, ...init } = {}) {
+  const nextHeaders = new Headers(headers || {})
+
+  if (auth) {
+    const accessToken = await getAccessToken()
+    if (!accessToken) {
+      throw new ApiError('Authentication is required.', {
+        status: 401,
+        code: 'missing_token',
+      })
+    }
+    nextHeaders.set('Authorization', `Bearer ${accessToken}`)
+  }
+
+  const response = await fetch(path, {
+    ...init,
+    headers: nextHeaders,
+  })
+  const payload = await response.json().catch(() => null)
+
+  if (!response.ok) {
+    throw new ApiError(
+      payload?.error?.message || 'The request failed.',
+      {
+        status: response.status,
+        code: payload?.error?.code,
+      },
+    )
+  }
+
+  return payload
+}
+
+export async function uploadVideo(file) {
   const formData = new FormData()
   const durationSeconds = await getVideoDurationSeconds(file)
 
   formData.append('video', file)
   formData.append('duration_seconds', String(durationSeconds))
 
-  const response = await fetch('/api/summarize', {
+  return fetchApi('/api/upload', {
     method: 'POST',
     body: formData,
   })
+}
 
-  const payload = await response.json().catch(() => null)
+export async function getJobStatus(jobId) {
+  return fetchApi(`/api/jobs/${jobId}`)
+}
 
-  if (!response.ok) {
-    const message = payload?.error?.message || 'Unable to analyze this recording right now.'
-    throw new Error(message)
-  }
+export async function getProfile() {
+  return fetchApi('/api/profile')
+}
 
-  return payload
+export async function getMatches() {
+  return fetchApi('/api/matches')
 }

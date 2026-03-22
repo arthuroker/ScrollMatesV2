@@ -34,9 +34,25 @@
   font-variation-settings: "FILL" 0, "wght" 400, "GRAD" 0, "opsz" 24;
 }
 
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: clip;
+}
+
 body {
+  margin: 0;
   background-color: #fef2e8;
   min-height: max(884px, 100dvh);
+  overflow-x: clip;
 }
 
 body::before {
@@ -142,6 +158,100 @@ body > * {
 
 .animate-bounce-x {
   animation: bounceX 1.2s ease-in-out infinite;
+}
+
+/* ── Stage transition ── */
+@keyframes stageEnter {
+  from { opacity: 0; transform: translateY(10px) scale(0.96); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+.animate-stage-enter {
+  animation: stageEnter 0.45s ease-out forwards;
+}
+
+/* ── Queued: bouncing dots ── */
+@keyframes queueBounce {
+  0%, 80%, 100% { transform: translateY(0); }
+  40% { transform: translateY(-14px); }
+}
+.animate-queue-1 { animation: queueBounce 1.2s ease-in-out infinite; }
+.animate-queue-2 { animation: queueBounce 1.2s ease-in-out 0.15s infinite; }
+.animate-queue-3 { animation: queueBounce 1.2s ease-in-out 0.3s infinite; }
+
+/* ── Persisting upload: progress ring ── */
+@keyframes persistRing {
+  0% { stroke-dashoffset: 163; }
+  50% { stroke-dashoffset: 40; }
+  100% { stroke-dashoffset: 163; }
+}
+.animate-persist-ring {
+  animation: persistRing 2.2s ease-in-out infinite;
+}
+
+/* ── Validating video: scanning line ── */
+@keyframes scanLine {
+  0% { transform: translateY(-14px); opacity: 0; }
+  15% { opacity: 0.45; }
+  85% { opacity: 0.45; }
+  100% { transform: translateY(14px); opacity: 0; }
+}
+.animate-scan-line {
+  animation: scanLine 1.8s ease-in-out infinite;
+}
+
+@keyframes checkPop {
+  0%, 60% { opacity: 0; transform: scale(0.5); }
+  80% { opacity: 0.5; transform: scale(1.15); }
+  100% { opacity: 0.4; transform: scale(1); }
+}
+.animate-check-pop {
+  animation: checkPop 1.8s ease-out infinite;
+}
+
+/* ── Uploading to Gemini: floating particles ── */
+@keyframes particleFloat {
+  0% { transform: translateY(0); opacity: 0.5; }
+  100% { transform: translateY(-32px); opacity: 0; }
+}
+.animate-particle-1 { animation: particleFloat 1.6s ease-out infinite; }
+.animate-particle-2 { animation: particleFloat 1.6s ease-out 0.3s infinite; }
+.animate-particle-3 { animation: particleFloat 1.6s ease-out 0.6s infinite; }
+.animate-particle-4 { animation: particleFloat 1.6s ease-out 0.9s infinite; }
+.animate-particle-5 { animation: particleFloat 1.6s ease-out 1.2s infinite; }
+
+/* ── Waiting for Gemini: orbiting dots ── */
+@keyframes orbit {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+.animate-orbit {
+  animation: orbit 3s linear infinite;
+}
+
+@keyframes centerPulse {
+  0%, 100% { transform: scale(1); opacity: 0.25; }
+  50% { transform: scale(1.4); opacity: 0.45; }
+}
+.animate-center-pulse {
+  animation: centerPulse 2s ease-in-out infinite;
+}
+
+/* ── Generating summary: sparkles ── */
+@keyframes sparkle {
+  0%, 100% { opacity: 0; transform: scale(0); }
+  50% { opacity: 1; transform: scale(1); }
+}
+.animate-sparkle-1 { animation: sparkle 1.8s ease-in-out infinite; }
+.animate-sparkle-2 { animation: sparkle 1.8s ease-in-out 0.4s infinite; }
+.animate-sparkle-3 { animation: sparkle 1.8s ease-in-out 0.8s infinite; }
+.animate-sparkle-4 { animation: sparkle 1.8s ease-in-out 1.2s infinite; }
+
+@keyframes genIcon {
+  0%, 100% { transform: scale(1); opacity: 0.4; }
+  50% { transform: scale(1.08); opacity: 0.55; }
+}
+.animate-gen-icon {
+  animation: genIcon 2.5s ease-in-out infinite;
 }
 
 /* Glassmorphism */

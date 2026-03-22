@@ -1,7 +1,7 @@
 export default function BottomNav() {
   return (
-    <nav className="fixed bottom-0 left-0 w-full z-50 glass-subtle">
-      <div className="flex justify-around items-center px-12 pb-8 pt-4">
+    <nav className="fixed bottom-0 left-0 z-50 w-full overflow-x-clip glass-subtle">
+      <div className="mx-auto flex w-full max-w-md items-center justify-around px-4 pb-8 pt-4 sm:px-6">
         <a className="flex flex-col items-center justify-center text-secondary p-3 transition-colors hover:text-brand" href="#">
           <span className="material-symbols-outlined">home</span>
         </a>

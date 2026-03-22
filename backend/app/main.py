@@ -1,188 +1,137 @@
-import mimetypes
-import os
-import subprocess
-import time
-from pathlib import Path
-from tempfile import NamedTemporaryFile
+from __future__ import annotations
 
-from fastapi import FastAPI, File, Form, UploadFile
+import asyncio
+from contextlib import asynccontextmanager
+from dataclasses import dataclass
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
+from uuid import uuid4
+
+from dotenv import load_dotenv
+from fastapi import BackgroundTasks, Depends, FastAPI, File, Form, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from google import genai
-from pydantic import ValidationError
-from dotenv import load_dotenv
 
-from .models import TraitSummary
+from .auth import AuthenticatedUser, get_current_user, require_admin
+from .config import Settings, get_settings
+from .db import create_pool
+from .errors import ApiError
+from .gemini_client import GeminiClient
+from .match_service import MatchRunService, run_match_worker
+from .media import persist_upload
+from .models import (
+    MatchResponse,
+    ProfileResponse,
+    SummaryJobResponse,
+    TriggerMatchRunResponse,
+    UploadJobResponse,
+)
+from .profile_service import ProfilePipelineService
+from .repository import PostgresRepository
 
 
 load_dotenv(Path(__file__).resolve().parents[1] / ".env.local")
 
-MAX_VIDEO_BYTES = 2 * 1024 * 1024 * 1024
-MAX_VIDEO_SECONDS = 45 * 60
-CHUNK_SIZE = 1024 * 1024
-SUPPORTED_VIDEO_MIME_TYPES = {
-    "video/3gpp",
-    "video/mp4",
-    "video/mpeg",
-    "video/mpg",
-    "video/mpegs",
-    "video/quicktime",
-    "video/webm",
-    "video/wmv",
-    "video/x-flv",
-}
-MODEL_NAME = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
-FILE_ACTIVE_TIMEOUT_SECONDS = 300
-FILE_ACTIVE_POLL_INTERVAL_SECONDS = 5
-PROMPT = """
-You are analyzing a screen recording of someone's short-form video feed (TikTok, Reels, etc.) to build a deep personality profile. The goal is to produce a description so accurate and specific that the user feels the app understands them better than they understand themselves. Be opinionated and direct — use sharp, specific labels rather than clinical or hedged language. Prefer "strongly politically incorrect humor" over "offensive humor", "parasocial and emotionally avoidant" over "difficulty with relationships."
 
-Before extracting any trait, consider the full context of the session:
-- Distinguish genuine interests from content where the subject is merely a vehicle. For every category of content, ask: is the subject matter the point, or is something else (absurdity, chaos, irony, social commentary) the point? A useful test: would a genuine enthusiast of this subject watch this specific video earnestly? If the appeal is clearly the chaos, absurdity, or humor — not the subject itself — classify it under humor/personality style, not as an interest in that subject. For example: videos of cars doing absurd or destructive things are not evidence of interest in cars or extreme sports — they reflect an appetite for absurdist humor. Videos mocking a subculture are not evidence of interest in that subculture.
-- Ask not just what they watch, but why. What underlying need, value, or worldview does this content satisfy? Someone who watches chaotic absurdist memes and someone who watches dry deadpan humor may both "like comedy" — but they are very different people.
-- Name tensions and contradictions if you see them. A person who watches both extremely online irony content and sincere heartfelt videos about family is more interesting and accurately described by naming that duality.
-
-Write each description as a tight, opinionated label for the trait — not a full sentence about the person. Prefer noun phrases: "dark, politically incorrect humor fixated on chaos and cringe" over "This person has a dark sense of humor." No hedging.
-
-Be specific. Mention real references, subcultures, aesthetics, or communities where relevant and where you are confident they reflect a genuine interest. Avoid vague words like "enjoys" or "is interested in" — instead describe the specific flavor of that interest and what it reveals about them as a person.
-
-Return only JSON that matches the provided schema.
-
-For each trait:
-- write a tight noun-phrase label (1–2 phrases max) that characterizes the trait with specificity and confidence
-- set weight as a float between 0 and 1
-- keep the full set of weights approximately normalized so the total is close to 1.0
-
-Do not include markdown, commentary, safety disclaimers, or extra keys.
-""".strip()
+@dataclass
+class AppServices:
+    settings: Settings
+    repository: PostgresRepository
+    profile_service: ProfilePipelineService
+    match_service: MatchRunService
+    match_worker_task: asyncio.Task | None = None
 
 
-class ApiError(Exception):
-    def __init__(self, status_code: int, code: str, message: str):
-        self.status_code = status_code
-        self.code = code
-        self.message = message
-        super().__init__(message)
+def _current_week_start_utc() -> datetime.date:
+    current_date = datetime.now(timezone.utc).date()
+    return current_date - timedelta(days=current_date.weekday())
 
 
-app = FastAPI(title="ScrollMates API")
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+def create_app(services: AppServices | None = None, *, start_worker: bool = True) -> FastAPI:
+    @asynccontextmanager
+    async def lifespan(app: FastAPI):
+        if services is None:
+            settings = get_settings()
+            pool = await create_pool(settings.supabase_db_url)
+            repository = PostgresRepository(pool)
+            profile_service = ProfilePipelineService(repository, GeminiClient(settings))
+            match_service = MatchRunService(repository, settings.match_top_k)
+            app_services = AppServices(
+                settings=settings,
+                repository=repository,
+                profile_service=profile_service,
+                match_service=match_service,
+            )
+            if start_worker:
+                app_services.match_worker_task = asyncio.create_task(
+                    run_match_worker(
+                        match_service,
+                        settings.match_poll_interval_seconds,
+                    )
+                )
+            app.state.services = app_services
+            try:
+                yield
+            finally:
+                if app_services.match_worker_task is not None:
+                    app_services.match_worker_task.cancel()
+                    await asyncio.gather(app_services.match_worker_task, return_exceptions=True)
+                await pool.close()
+        else:
+            app.state.services = services
+            yield
 
-
-@app.exception_handler(ApiError)
-async def api_error_handler(_, exc: ApiError):
-    return JSONResponse(
-        status_code=exc.status_code,
-        content={"error": {"code": exc.code, "message": exc.message}},
+    settings = services.settings if services is not None else Settings(
+        supabase_db_url="",
+        supabase_jwt_secret="",
+        admin_secret="",
+        gemini_api_key="",
+        gemini_model="gemini-2.5-flash",
+        gemini_embedding_model="text-embedding-004",
+        match_top_k=5,
+        match_poll_interval_seconds=10.0,
+        cors_allow_origins=("*",),
+    )
+    app = FastAPI(title="ScrollMates API", lifespan=lifespan)
+    if services is not None:
+        app.dependency_overrides[get_settings] = lambda: services.settings
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=list(settings.cors_allow_origins),
+        allow_methods=["*"],
+        allow_headers=["*"],
     )
 
-
-def remove_file(path: str | None) -> None:
-    if path:
-        Path(path).unlink(missing_ok=True)
-
-
-def detect_mime_type(upload: UploadFile) -> str:
-    content_type = (upload.content_type or "").lower()
-    if content_type in SUPPORTED_VIDEO_MIME_TYPES:
-        return content_type
-
-    guessed, _ = mimetypes.guess_type(upload.filename or "")
-    if guessed in SUPPORTED_VIDEO_MIME_TYPES:
-        return guessed
-
-    raise ApiError(415, "unsupported_media_type", "Upload a supported video file.")
-
-
-async def persist_upload(upload: UploadFile) -> tuple[str, str]:
-    mime_type = detect_mime_type(upload)
-    suffix = Path(upload.filename or "").suffix or ".video"
-    temp_file = NamedTemporaryFile(delete=False, suffix=suffix)
-    temp_path = temp_file.name
-    total_bytes = 0
-
-    try:
-        while chunk := await upload.read(CHUNK_SIZE):
-            total_bytes += len(chunk)
-            if total_bytes > MAX_VIDEO_BYTES:
-                raise ApiError(
-                    413,
-                    "file_too_large",
-                    "Video exceeds the 2 GB Gemini file limit.",
-                )
-            temp_file.write(chunk)
-    except Exception:
-        temp_file.close()
-        remove_file(temp_path)
-        raise
-    finally:
-        temp_file.close()
-        await upload.close()
-
-    return temp_path, mime_type
-
-
-def probe_duration_seconds(video_path: str) -> float | None:
-    try:
-        completed = subprocess.run(
-            [
-                "ffprobe",
-                "-v",
-                "error",
-                "-show_entries",
-                "format=duration",
-                "-of",
-                "default=noprint_wrappers=1:nokey=1",
-                video_path,
-            ],
-            check=True,
-            capture_output=True,
-            text=True,
-        )
-    except FileNotFoundError:
-        return None
-    except subprocess.CalledProcessError as exc:
-        raise ApiError(
-            400,
-            "invalid_video",
-            "Unable to inspect the uploaded video file.",
-        ) from exc
-
-    try:
-        return float(completed.stdout.strip())
-    except ValueError as exc:
-        raise ApiError(
-            400,
-            "invalid_video",
-            "Unable to determine the uploaded video duration.",
-        ) from exc
-
-
-def resolve_duration_seconds(
-    video_path: str,
-    client_duration_seconds: float | None,
-) -> float:
-    probed_duration_seconds = probe_duration_seconds(video_path)
-    if probed_duration_seconds is not None:
-        return probed_duration_seconds
-
-    if client_duration_seconds is None:
-        raise ApiError(
-            400,
-            "missing_duration",
-            "Unable to determine the uploaded video duration.",
+    @app.exception_handler(ApiError)
+    async def api_error_handler(_, exc: ApiError):
+        return JSONResponse(
+            status_code=exc.status_code,
+            content={"error": {"code": exc.code, "message": exc.message}},
         )
 
-    if client_duration_seconds <= 0:
-        raise ApiError(
-            400,
-            "invalid_duration",
-            "Uploaded video duration must be greater than zero.",
+    def get_services() -> AppServices:
+        return app.state.services
+
+    @app.get("/api/health")
+    async def health_check():
+        return {"status": "ok"}
+
+    @app.post("/api/upload", response_model=UploadJobResponse, status_code=202)
+    async def upload_video(
+        background_tasks: BackgroundTasks,
+        video: UploadFile = File(...),
+        duration_seconds: float | None = Form(default=None),
+        current_user: AuthenticatedUser = Depends(get_current_user),
+        app_services: AppServices = Depends(get_services),
+    ):
+        job_id = str(uuid4())
+        source_filename = video.filename or "upload.video"
+        await app_services.repository.create_summary_job(
+            job_id=job_id,
+            user_id=current_user.user_id,
+            source_filename=source_filename,
+            mime_type=video.content_type,
+            duration_seconds=duration_seconds,
         )
 
     return client_duration_seconds
@@ -250,55 +199,70 @@ def wait_for_active_file(client: genai.Client, uploaded_file):
                 502,
                 "file_processing_failed",
                 "Gemini failed to process the uploaded video file.",
+        try:
+            video_path = await persist_upload(video)
+        except ApiError as exc:
+            await app_services.repository.fail_job(job_id, exc.code, exc.message)
+            raise
+        except Exception as exc:
+            await app_services.repository.fail_job(
+                job_id,
+                "upload_persist_failed",
+                f"Unable to persist the uploaded video: {exc}",
             )
-
-        if time.monotonic() - started_at >= FILE_ACTIVE_TIMEOUT_SECONDS:
             raise ApiError(
-                504,
-                "file_processing_timeout",
-                "Gemini took too long to activate the uploaded video file.",
-            )
+                500,
+                "upload_persist_failed",
+                "Unable to persist the uploaded video.",
+            ) from exc
 
-        time.sleep(FILE_ACTIVE_POLL_INTERVAL_SECONDS)
-        current_file = client.files.get(name=current_file.name)
-
-
-def summarize_video(video_path: str, mime_type: str) -> TraitSummary:
-    client = build_client()
-    uploaded_file = None
-
-    try:
-        uploaded_file = client.files.upload(file=video_path)
-        uploaded_file = wait_for_active_file(client, uploaded_file)
-        response = client.models.generate_content(
-            model=MODEL_NAME,
-            contents=[uploaded_file, PROMPT],
-            config={
-                "response_mime_type": "application/json",
-                "response_json_schema": TraitSummary.model_json_schema(),
-            },
+        background_tasks.add_task(
+            app_services.profile_service.process_job,
+            job_id=job_id,
+            user_id=current_user.user_id,
+            video_path=video_path,
+            content_type=video.content_type,
+            filename=source_filename,
+            client_duration_seconds=duration_seconds,
         )
-        return TraitSummary.model_validate_json(response.text)
-    except ValidationError as exc:
-        raise ApiError(
-            502,
-            "invalid_model_output",
-            "Gemini returned JSON that did not match the required schema.",
-        ) from exc
-    except ApiError:
-        raise
-    except Exception as exc:
-        raise ApiError(
-            502,
-            "gemini_request_failed",
-            f"Gemini request failed: {exc}",
-        ) from exc
-    finally:
-        if uploaded_file is not None:
-            try:
-                client.files.delete(name=uploaded_file.name)
-            except Exception:
-                pass
+        return UploadJobResponse(job_id=job_id)
+
+    @app.get("/api/jobs/{job_id}", response_model=SummaryJobResponse)
+    async def get_job(
+        job_id: str,
+        current_user: AuthenticatedUser = Depends(get_current_user),
+        app_services: AppServices = Depends(get_services),
+    ):
+        job = await app_services.repository.get_summary_job_for_user(job_id, current_user.user_id)
+        if job is None:
+            raise ApiError(404, "summary_job_not_found", "Summary job not found.")
+        return job
+
+    @app.get("/api/profile", response_model=ProfileResponse)
+    async def get_profile(
+        current_user: AuthenticatedUser = Depends(get_current_user),
+        app_services: AppServices = Depends(get_services),
+    ):
+        profile = await app_services.repository.get_latest_profile_for_user(current_user.user_id)
+        if profile is None:
+            raise ApiError(404, "profile_not_found", "Personality profile not found.")
+        return profile
+
+    @app.get("/api/matches", response_model=list[MatchResponse])
+    async def get_matches(
+        current_user: AuthenticatedUser = Depends(get_current_user),
+        app_services: AppServices = Depends(get_services),
+    ):
+        return await app_services.repository.get_latest_matches_for_user(current_user.user_id)
+
+    @app.post("/api/admin/trigger-match-run", response_model=TriggerMatchRunResponse)
+    async def trigger_match_run(
+        _: AuthenticatedUser = Depends(require_admin),
+        app_services: AppServices = Depends(get_services),
+    ):
+        return await app_services.repository.trigger_match_run(_current_week_start_utc())
+
+    return app
 
 
 @app.get("/api/health")
@@ -332,3 +296,4 @@ async def summarize(
     finally:
         remove_file(transcoded_path)
         remove_file(video_path)
+app = create_app()

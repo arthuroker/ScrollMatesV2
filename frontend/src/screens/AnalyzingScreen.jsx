@@ -1,46 +1,72 @@
-import { useEffect, useState } from 'react'
+const STAGES_ORDER = [
+  'upload',
+  'gemini_analysis',
+  'embedding',
+]
 
-const LABELS = {
-  mock: ['Loading sample traits', 'Formatting cards', 'Almost done'],
-  real: ['Uploading recording', 'Analyzing with Gemini', 'Rendering results'],
+const STAGE_CONFIG = {
+  upload: {
+    label: 'Saving recording',
+    sublabel: 'Creating your profile job',
+    icon: 'upload_file',
+  },
+  gemini_analysis: {
+    label: 'Analyzing scroll',
+    sublabel: 'Gemini is building your personality map',
+    icon: 'auto_awesome',
+  },
+  embedding: {
+    label: 'Computing matches',
+    sublabel: 'Embedding traits for this week’s drop',
+    icon: 'bubble_chart',
+  },
 }
 
-export default function AnalyzingScreen({ analysisMode, fileName }) {
-  const labels = LABELS[analysisMode]
-  const [index, setIndex] = useState(0)
-
-  useEffect(() => {
-    const interval = window.setInterval(() => {
-      setIndex((i) => (i + 1) % labels.length)
-    }, 2000)
-    return () => window.clearInterval(interval)
-  }, [labels.length])
+function StageProgress({ stage }) {
+  const currentIndex = STAGES_ORDER.indexOf(stage)
 
   return (
-    <main className="min-h-screen flex flex-col items-center justify-center px-8">
-      <div className="relative w-10 h-10 mb-8 animate-fade-up">
-        <div className="absolute inset-0 rounded-full border-2 border-brand/10" />
-        <svg className="absolute inset-0 w-full h-full animate-spin" style={{ animationDuration: '1.8s' }} viewBox="0 0 40 40">
-          <circle
-            cx="20"
-            cy="20"
-            r="18"
-            fill="none"
-            stroke="#542822"
-            strokeWidth="2"
-            strokeDasharray="28 85"
-            strokeLinecap="round"
-            opacity="0.45"
-          />
-        </svg>
+    <div className="flex gap-2">
+      {STAGES_ORDER.map((stageName, index) => (
+        <div
+          key={stageName}
+          className={`h-1.5 rounded-full transition-all duration-500 ${
+            index <= currentIndex
+              ? 'bg-brand/40 w-8'
+              : 'bg-brand/10 w-3'
+          }`}
+        />
+      ))}
+    </div>
+  )
+}
+
+export default function AnalyzingScreen({ stage }) {
+  const config = STAGE_CONFIG[stage] || STAGE_CONFIG.upload
+
+  return (
+    <main className="box-border min-h-screen w-full max-w-full overflow-x-clip flex flex-col items-center justify-center px-8">
+      <div key={stage} className="flex flex-col items-center animate-stage-enter">
+        <div className="glass-strong mb-6 flex h-20 w-20 items-center justify-center rounded-full shadow-lg shadow-brand/10">
+          <span
+            className="material-symbols-outlined text-brand/50 text-4xl animate-center-pulse"
+            style={{ fontVariationSettings: '"FILL" 1' }}
+          >
+            {config.icon}
+          </span>
+        </div>
+
+        <p className="font-body text-sm text-brand/70 font-medium">
+          {config.label}
+        </p>
+        <p className="font-label text-[10px] uppercase tracking-[0.2em] text-brand/30 mt-1.5 text-center">
+          {config.sublabel}
+        </p>
       </div>
 
-      <p className="font-body text-sm text-brand/70 animate-fade-up" style={{ animationDelay: '0.1s' }}>
-        {labels[index]}
-      </p>
-      <p className="font-label text-[10px] uppercase tracking-[0.2em] text-brand/30 mt-2 animate-fade-up" style={{ animationDelay: '0.2s' }}>
-        {fileName}
-      </p>
+      <div className="mt-10">
+        <StageProgress stage={stage} />
+      </div>
     </main>
   )
 }
