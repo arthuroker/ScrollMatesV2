@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react'
-import { motion, AnimatePresence } from 'motion/react'
+import { useMemo, useRef, useState } from 'react'
+import { motion, AnimatePresence, LayoutGroup } from 'motion/react'
 
 const PALETTE = [
   '#542822',
@@ -66,6 +66,8 @@ function packCircles(items) {
 
 export default function BubblesView({ traits, traitLabels }) {
   const [selected, setSelected] = useState(null)
+  const [layoutExpanded, setLayoutExpanded] = useState(false)
+  const selectedRef = useRef(null)
 
   const minR = 55
   const maxR = 95
@@ -112,16 +114,18 @@ export default function BubblesView({ traits, traitLabels }) {
       exit={{ opacity: 0, y: 10 }}
       transition={{ duration: 0.4 }}
     >
+      <LayoutGroup>
       <div
         className={`mx-auto w-full ${
-          hasSelection
+          layoutExpanded
             ? 'flex max-w-4xl flex-col items-center gap-6 md:grid md:grid-cols-[minmax(0,1fr)_minmax(14rem,16rem)] md:items-center md:gap-10'
             : 'flex justify-center'
         }`}
       >
         <motion.div
+          layout
           className="w-full max-w-xl flex-shrink-0"
-          transition={{ type: 'spring', stiffness: 80, damping: 18 }}
+          transition={{ duration: 0.4, ease: [0.25, 0.1, 0.25, 1] }}
         >
           <svg
             viewBox={`${vx} ${vy} ${vw} ${vh}`}
@@ -152,9 +156,12 @@ export default function BubblesView({ traits, traitLabels }) {
                     opacity: { duration: 0.3, delay: 0 },
                   }}
                   style={{ transformOrigin: `${c.x}px ${c.y}px` }}
-                  onClick={() =>
-                    setSelected(selected === c.key ? null : c.key)
-                  }
+                  onClick={() => {
+                    const next = selected === c.key ? null : c.key
+                    selectedRef.current = next
+                    setSelected(next)
+                    if (next) setLayoutExpanded(true)
+                  }}
                   className="cursor-pointer"
                 >
                   <circle
@@ -199,18 +206,17 @@ export default function BubblesView({ traits, traitLabels }) {
           </svg>
         </motion.div>
 
-        <AnimatePresence>
+        <AnimatePresence mode="wait" onExitComplete={() => { if (!selectedRef.current) setLayoutExpanded(false) }}>
           {hasSelection ? (
             <motion.div
               key={selected}
-              className="w-full max-w-sm md:max-w-xs"
-              initial={{ opacity: 0, x: 30, filter: 'blur(8px)' }}
-              animate={{ opacity: 1, x: 0, filter: 'blur(0px)' }}
-              exit={{ opacity: 0, x: 30, filter: 'blur(8px)' }}
+              className="w-full max-w-sm md:max-w-xs min-h-[10rem]"
+              initial={{ opacity: 0, filter: 'blur(6px)' }}
+              animate={{ opacity: 1, filter: 'blur(0px)' }}
+              exit={{ opacity: 0, filter: 'blur(6px)' }}
               transition={{
-                duration: 0.35,
+                duration: 0.25,
                 ease: [0.25, 0.1, 0.25, 1],
-                filter: { duration: 0.25 },
               }}
             >
               <div className="flex flex-col items-start">
@@ -262,9 +268,10 @@ export default function BubblesView({ traits, traitLabels }) {
           ) : null}
         </AnimatePresence>
       </div>
+      </LayoutGroup>
 
       {/* Hint when nothing selected */}
-      <div className="h-8 flex items-center justify-center">
+      <div className="h-1 flex items-center justify-center">
         <AnimatePresence>
           {!selected && (
             <motion.p
