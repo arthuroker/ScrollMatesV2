@@ -1,5 +1,11 @@
 export const MOCK_SUMMARY_DELAY_MS = 1600
 
+export const MOCK_STAGES = [
+  { stage: 'upload', duration: 1800 },
+  { stage: 'gemini_analysis', duration: 3200 },
+  { stage: 'embedding', duration: 2200 },
+]
+
 export const MOCK_SUMMARY = {
   relational_orientation: {
     description: 'values deep emotional connection, frequently engages with relationship advice and vulnerability content',
