@@ -35,12 +35,21 @@ MODEL_NAME = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
 FILE_ACTIVE_TIMEOUT_SECONDS = 300
 FILE_ACTIVE_POLL_INTERVAL_SECONDS = 5
 PROMPT = """
-Analyze this scrolling session recording and infer the viewer's psychographic profile from the content they spend time on, pause on, and repeatedly engage with.
+You are analyzing a screen recording of someone's short-form video feed (TikTok, Reels, etc.) to build a deep personality profile. The goal is to produce a description so accurate and specific that the user feels the app understands them better than they understand themselves. Be opinionated and direct — use sharp, specific labels rather than clinical or hedged language. Prefer "strongly politically incorrect humor" over "offensive humor", "parasocial and emotionally avoidant" over "difficulty with relationships."
+
+Before extracting any trait, consider the full context of the session:
+- Distinguish genuine interests from content where the subject is merely a vehicle. For every category of content, ask: is the subject matter the point, or is something else (absurdity, chaos, irony, social commentary) the point? A useful test: would a genuine enthusiast of this subject watch this specific video earnestly? If the appeal is clearly the chaos, absurdity, or humor — not the subject itself — classify it under humor/personality style, not as an interest in that subject. For example: videos of cars doing absurd or destructive things are not evidence of interest in cars or extreme sports — they reflect an appetite for absurdist humor. Videos mocking a subculture are not evidence of interest in that subculture.
+- Ask not just what they watch, but why. What underlying need, value, or worldview does this content satisfy? Someone who watches chaotic absurdist memes and someone who watches dry deadpan humor may both "like comedy" — but they are very different people.
+- Name tensions and contradictions if you see them. A person who watches both extremely online irony content and sincere heartfelt videos about family is more interesting and accurately described by naming that duality.
+
+Write each description as a tight, opinionated label for the trait — not a full sentence about the person. Prefer noun phrases: "dark, politically incorrect humor fixated on chaos and cringe" over "This person has a dark sense of humor." No hedging.
+
+Be specific. Mention real references, subcultures, aesthetics, or communities where relevant and where you are confident they reflect a genuine interest. Avoid vague words like "enjoys" or "is interested in" — instead describe the specific flavor of that interest and what it reveals about them as a person.
 
 Return only JSON that matches the provided schema.
 
 For each trait:
-- write a concise natural-language description grounded in the observed content themes
+- write a tight noun-phrase label (1–2 phrases max) that characterizes the trait with specificity and confidence
 - set weight as a float between 0 and 1
 - keep the full set of weights approximately normalized so the total is close to 1.0
 
